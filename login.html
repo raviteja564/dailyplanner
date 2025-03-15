@@ -4,29 +4,102 @@
     <title>Login</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <!-- Use same firebase config as index.html -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px; }
+        input { display: block; margin: 10px 0; padding: 8px; width: 100%; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .error { color: red; margin-top: 10px; }
+    </style>
 </head>
 <body>
     <h2>Login/Signup</h2>
-    <input type="email" id="email" placeholder="Email">
-    <input type="password" id="password" placeholder="Password">
+    <input type="email" id="email" placeholder="Email" required>
+    <input type="password" id="password" placeholder="Password" required>
     <button onclick="login()">Login</button>
     <button onclick="signup()">Sign Up</button>
+    <div id="errorMessage" class="error"></div>
 
     <script>
-    function login() {
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      firebase.auth().signInWithEmailAndPassword(email, password)
-        .then(() => window.location.href = "index.html");
-    }
+        // Add your Firebase config here (same as in index.html)
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
-    function signup() {
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      firebase.auth().createUserWithEmailAndPassword(email, password)
-        .then(() => window.location.href = "index.html");
-    }
+        // Check if user is already logged in
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                window.location.href = "index.html";
+            }
+        });
+
+        function handleError(error) {
+            const errorMessage = document.getElementById('errorMessage');
+            switch (error.code) {
+                case 'auth/invalid-email':
+                    errorMessage.textContent = 'Invalid email format';
+                    break;
+                case 'auth/user-disabled':
+                    errorMessage.textContent = 'Account disabled';
+                    break;
+                case 'auth/user-not-found':
+                    errorMessage.textContent = 'User not found';
+                    break;
+                case 'auth/wrong-password':
+                    errorMessage.textContent = 'Wrong password';
+                    break;
+                case 'auth/email-already-in-use':
+                    errorMessage.textContent = 'Email already in use';
+                    break;
+                case 'auth/weak-password':
+                    errorMessage.textContent = 'Password should be at least 6 characters';
+                    break;
+                default:
+                    errorMessage.textContent = error.message;
+            }
+        }
+
+        function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            auth.signInWithEmailAndPassword(email, password)
+                .then(() => {
+                    window.location.href = "index.html";
+                })
+                .catch(error => {
+                    handleError(error);
+                });
+        }
+
+        function signup() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            auth.createUserWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    // Create initial user document
+                    return db.collection('users').doc(userCredential.user.uid).set({
+                        plannerData: { days: [] }
+                    });
+                })
+                .then(() => {
+                    window.location.href = "index.html";
+                })
+                .catch(error => {
+                    handleError(error);
+                });
+        }
     </script>
 </body>
 </html>
