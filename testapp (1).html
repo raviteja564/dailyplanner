@@ -28,411 +28,235 @@
         .delete-popup button { margin: 5px; }
         .graph-container { margin-top: 40px; }
         .graph-container div { margin-bottom: 40px; }
+        #auth-container { max-width: 300px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; text-align: center; }
+        #login-form, #signup-form { display: flex; flex-direction: column; gap: 10px; }
+        #app { display: none; } /* Hide the app until the user logs in */
     </style>
 </head>
 <body>
-    <h1>Daily Planner exclusively for MONICA</h1>
-
-    <!-- Task Input -->
-    <div class="task-container">
-        <input type="text" id="taskInput" placeholder="Enter task...">
-        <div class="expiry-selector">
-            <label for="expiryDate">Expiry Date:</label>
-            <input type="date" id="expiryDate" min="">
+    <!-- Auth Container -->
+    <div id="auth-container">
+        <!-- Login Form -->
+        <div id="login-form">
+            <h2>Login</h2>
+            <input type="email" id="loginEmail" placeholder="Email">
+            <input type="password" id="loginPassword" placeholder="Password">
+            <button onclick="login()">Login</button>
+            <p>Don't have an account? <a href="#" onclick="showSignUp()">Sign Up</a></p>
         </div>
-        <button onclick="addTask()">Add Task</button>
-    </div>
 
-    <!-- Navigation -->
-    <div class="navigation">
-        <button class="nav-button" onclick="previous()">Previous</button>
-        <span id="currentRange"></span>
-        <button class="nav-button" onclick="next()">Next</button>
-        <button class="today-button" onclick="highlightToday()">Today</button>
-    </div>
-
-    <!-- Calendar -->
-    <div class="calendar" id="calendar"></div>
-
-    <!-- Task List -->
-    <table class="task-table" id="taskTable">
-        <thead>
-            <tr>
-                <th>Task</th>
-                <th>Status</th>
-                <th>Notes</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="tasksList"></tbody>
-    </table>
-
-    <!-- Delete Popup -->
-    <div class="delete-popup" id="deletePopup">
-        <p>Are you sure you want to delete this task?</p>
-        <button onclick="deleteForToday()">Delete for Today</button>
-        <button onclick="deleteCompletely()">Delete Completely</button>
-        <button onclick="closeDeletePopup()">Cancel</button>
-    </div>
-
-    <!-- Graphs -->
-    <div class="graph-container">
-        <div>
-            <h2>Weekly Status</h2>
-            <canvas id="weeklyChart"></canvas>
-        </div>
-        <div>
-            <h2>Monthly Status</h2>
-            <canvas id="monthlyChart"></canvas>
+        <!-- Sign-Up Form -->
+        <div id="signup-form" style="display: none;">
+            <h2>Sign Up</h2>
+            <input type="email" id="email" placeholder="Email">
+            <input type="password" id="password" placeholder="Password">
+            <button onclick="signUp()">Sign Up</button>
+            <p>Already have an account? <a href="#" onclick="showLogin()">Login</a></p>
         </div>
     </div>
 
-<script>
-// Data structure: { days: [{ date: "YYYY-MM-DD", tasks: [{ id, name, status, notes }] }] }
-let plannerData = JSON.parse(localStorage.getItem('plannerData')) || { days: [] };
-let currentDate = new Date().toLocaleDateString('en-CA'); // Use local time in YYYY-MM-DD format
-let currentStartDate = new Date(); // Start date for day view (local time)
-let deleteTaskId = null; // Track task to delete
+    <!-- Main App (Hidden Initially) -->
+    <div id="app">
+        <h1>Daily Planner exclusively for MONICA</h1>
 
-// Initialize current day
-if (!plannerData.days.some(day => day.date === currentDate)) {
-    plannerData.days.push({
-        date: currentDate,
-        tasks: []
-    });
-    saveData();
-}
+        <!-- Task Input -->
+        <div class="task-container">
+            <input type="text" id="taskInput" placeholder="Enter task...">
+            <div class="expiry-selector">
+                <label for="expiryDate">Expiry Date:</label>
+                <input type="date" id="expiryDate" min="">
+            </div>
+            <button onclick="addTask()">Add Task</button>
+        </div>
 
-// Set minimum expiry date to today
-document.getElementById('expiryDate').min = currentDate;
+        <!-- Navigation -->
+        <div class="navigation">
+            <button class="nav-button" onclick="previous()">Previous</button>
+            <span id="currentRange"></span>
+            <button class="nav-button" onclick="next()">Next</button>
+            <button class="today-button" onclick="highlightToday()">Today</button>
+        </div>
 
-// Load initial data
-renderCalendar();
-loadDay(currentDate);
-renderCharts();
+        <!-- Calendar -->
+        <div class="calendar" id="calendar"></div>
 
-function addTask() {
-    const input = document.getElementById('taskInput');
-    const expiryDate = document.getElementById('expiryDate').value;
-    const taskName = input.value.trim();
-    
-    if (taskName && expiryDate) {
-        const taskId = Date.now();
-        const startDate = new Date(currentDate);
-        const endDate = new Date(expiryDate);
-
-        // Add task to all days from today to expiry date
-        while (startDate <= endDate) {
-            const dateStr = startDate.toISOString().split('T')[0];
-            let day = plannerData.days.find(day => day.date === dateStr);
-            
-            if (!day) {
-                day = { date: dateStr, tasks: [] };
-                plannerData.days.push(day);
-            }
-
-            // Add task if it doesn't already exist
-            if (!day.tasks.some(task => task.id === taskId)) {
-                day.tasks.push({
-                    id: taskId,
-                    name: taskName,
-                    status: 'pending', // Default status
-                    notes: ''
-                });
-            }
-
-            startDate.setDate(startDate.getDate() + 1); // Move to next day
-        }
-
-        saveData();
-        input.value = '';
-        loadDay(currentDate);
-        renderCharts();
-    } else {
-        alert("Please enter a task and select an expiry date.");
-    }
-}
-
-function updateStatus(id, status) {
-    const day = plannerData.days.find(day => day.date === currentDate);
-    if (day) {
-        const task = day.tasks.find(task => task.id === id);
-        if (task) {
-            task.status = status;
-            saveData();
-            loadDay(currentDate);
-            renderCharts();
-        }
-    }
-}
-
-function updateNotes(id, notes) {
-    const day = plannerData.days.find(day => day.date === currentDate);
-    if (day) {
-        const task = day.tasks.find(task => task.id === id);
-        if (task) {
-            task.notes = notes;
-            saveData();
-        }
-    }
-}
-
-function loadDay(date) {
-    currentDate = date; // Update currentDate to the selected day
-    const day = plannerData.days.find(d => d.date === date);
-    const tasksList = document.getElementById('tasksList');
-    tasksList.innerHTML = '';
-
-    if (day) {
-        day.tasks.forEach(task => {
-            const rowClass = task.status === 'completed' ? 'completed-task' : 
-                             task.status === 'skipped' ? 'skipped-task' : '';
-            tasksList.innerHTML += `
-                <tr class="${rowClass}">
-                    <td>${task.name}</td>
-                    <td>
-                        <select onchange="updateStatus(${task.id}, this.value)">
-                            <option value="pending" ${task.status === 'pending' ? 'selected' : ''}>Pending</option>
-                            <option value="completed" ${task.status === 'completed' ? 'selected' : ''}>Completed</option>
-                            <option value="skipped" ${task.status === 'skipped' ? 'selected' : ''}>Skip for the Day</option>
-                        </select>
-                    </td>
-                    <td>
-                        <input type="text" placeholder="Add notes..." 
-                               value="${task.notes || ''}" 
-                               onchange="updateNotes(${task.id}, this.value)"
-                               onfocus="if (this.value === '') this.value = ''">
-                    </td>
-                    <td>
-                        <button class="delete-button" onclick="openDeletePopup(${task.id})">Delete</button>
-                    </td>
+        <!-- Task List -->
+        <table class="task-table" id="taskTable">
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
                 </tr>
-            `;
-        });
-    }
-    renderCalendar(); // Refresh calendar to highlight selected date
-}
+            </thead>
+            <tbody id="tasksList"></tbody>
+        </table>
 
-function openDeletePopup(taskId) {
-    deleteTaskId = taskId;
-    document.getElementById('deletePopup').style.display = 'block';
-}
+        <!-- Delete Popup -->
+        <div class="delete-popup" id="deletePopup">
+            <p>Are you sure you want to delete this task?</p>
+            <button onclick="deleteForToday()">Delete for Today</button>
+            <button onclick="deleteCompletely()">Delete Completely</button>
+            <button onclick="closeDeletePopup()">Cancel</button>
+        </div>
 
-function closeDeletePopup() {
-    document.getElementById('deletePopup').style.display = 'none';
-}
+        <!-- Graphs -->
+        <div class="graph-container">
+            <div>
+                <h2>Weekly Status</h2>
+                <canvas id="weeklyChart"></canvas>
+            </div>
+            <div>
+                <h2>Monthly Status</h2>
+                <canvas id="monthlyChart"></canvas>
+            </div>
+        </div>
+    </div>
 
-function deleteForToday() {
-    const day = plannerData.days.find(day => day.date === currentDate);
-    if (day) {
-        day.tasks = day.tasks.filter(task => task.id !== deleteTaskId);
-        saveData();
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js"></script>
+
+    <script>
+        // Firebase configuration (replace with your own values)
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth(); // For authentication
+        const db = firebase.firestore(); // For Firestore database
+
+        // Toggle between login and sign-up forms
+        function showSignUp() {
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('signup-form').style.display = 'block';
+        }
+
+        function showLogin() {
+            document.getElementById('signup-form').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+        }
+
+        // Sign-Up Function
+        function signUp() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            auth.createUserWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    alert('User created successfully!');
+                    showLogin(); // Switch to login form after sign-up
+                })
+                .catch((error) => {
+                    alert(error.message);
+                });
+        }
+
+        // Login Function
+        function login() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            auth.signInWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    alert('Logged in successfully!');
+                    document.getElementById('auth-container').style.display = 'none'; // Hide auth container
+                    document.getElementById('app').style.display = 'block'; // Show the app
+                    loadDay(new Date().toLocaleDateString('en-CA')); // Load tasks for today
+                })
+                .catch((error) => {
+                    alert(error.message);
+                });
+        }
+
+        // Logout Function
+        function logout() {
+            auth.signOut()
+                .then(() => {
+                    alert('Logged out successfully!');
+                    document.getElementById('auth-container').style.display = 'block'; // Show auth container
+                    document.getElementById('app').style.display = 'none'; // Hide the app
+                })
+                .catch((error) => {
+                    alert(error.message);
+                });
+        }
+
+        // Task Management Functions (from your original code)
+        let plannerData = JSON.parse(localStorage.getItem('plannerData')) || { days: [] };
+        let currentDate = new Date().toLocaleDateString('en-CA'); // Use local time in YYYY-MM-DD format
+        let currentStartDate = new Date(); // Start date for day view (local time)
+        let deleteTaskId = null; // Track task to delete
+
+        // Initialize current day
+        if (!plannerData.days.some(day => day.date === currentDate)) {
+            plannerData.days.push({
+                date: currentDate,
+                tasks: []
+            });
+            saveData();
+        }
+
+        // Set minimum expiry date to today
+        document.getElementById('expiryDate').min = currentDate;
+
+        // Load initial data
+        renderCalendar();
         loadDay(currentDate);
         renderCharts();
-    }
-    closeDeletePopup();
-}
 
-function deleteCompletely() {
-    plannerData.days.forEach(day => {
-        day.tasks = day.tasks.filter(task => task.id !== deleteTaskId);
-    });
-    saveData();
-    loadDay(currentDate);
-    renderCharts();
-    closeDeletePopup();
-}
+        function addTask() {
+            const input = document.getElementById('taskInput');
+            const expiryDate = document.getElementById('expiryDate').value;
+            const taskName = input.value.trim();
+            
+            if (taskName && expiryDate) {
+                const taskId = Date.now();
+                const startDate = new Date(currentDate);
+                const endDate = new Date(expiryDate);
 
-function renderCalendar() {
-    const calendar = document.getElementById('calendar');
-    calendar.innerHTML = '';
+                // Add task to all days from today to expiry date
+                while (startDate <= endDate) {
+                    const dateStr = startDate.toISOString().split('T')[0];
+                    let day = plannerData.days.find(day => day.date === dateStr);
+                    
+                    if (!day) {
+                        day = { date: dateStr, tasks: [] };
+                        plannerData.days.push(day);
+                    }
 
-    const dateStr = currentStartDate.toISOString().split('T')[0];
-    const isToday = dateStr === new Date().toLocaleDateString('en-CA'); // Use local time
-    const isSelected = dateStr === currentDate;
-    const hasTasks = plannerData.days.some(d => d.date === dateStr);
+                    // Add task if it doesn't already exist
+                    if (!day.tasks.some(task => task.id === taskId)) {
+                        day.tasks.push({
+                            id: taskId,
+                            name: taskName,
+                            status: 'pending', // Default status
+                            notes: ''
+                        });
+                    }
 
-    calendar.innerHTML += `
-        <div class="${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}" 
-             onclick="loadDay('${dateStr}')">
-            ${currentStartDate.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric' })}
-        </div>
-    `;
-}
-
-function updateNavigation() {
-    const currentRange = document.getElementById('currentRange');
-    currentRange.textContent = currentStartDate.toLocaleDateString();
-}
-
-function previous() {
-    currentStartDate.setDate(currentStartDate.getDate() - 1); // Move back by a day
-    renderCalendar();
-    updateNavigation();
-    loadDay(currentStartDate.toISOString().split('T')[0]); // Auto-load tasks
-}
-
-function next() {
-    currentStartDate.setDate(currentStartDate.getDate() + 1); // Move forward by a day
-    renderCalendar();
-    updateNavigation();
-    loadDay(currentStartDate.toISOString().split('T')[0]); // Auto-load tasks
-}
-
-function highlightToday() {
-    const today = new Date().toLocaleDateString('en-CA'); // Use local time in YYYY-MM-DD format
-    currentStartDate = new Date(); // Reset to today (local time)
-    renderCalendar();
-    updateNavigation();
-    loadDay(today); // Load tasks for today
-}
-
-function saveData() {
-    localStorage.setItem('plannerData', JSON.stringify(plannerData));
-}
-
-function renderCharts() {
-    const weeklyData = getWeeklyData();
-    const monthlyData = getMonthlyData();
-
-    // Weekly Chart
-    const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
-    new Chart(weeklyCtx, {
-        type: 'bar',
-        data: {
-            labels: weeklyData.days, // Days of the week
-            datasets: [
-                {
-                    label: 'Completed',
-                    data: weeklyData.completed,
-                    backgroundColor: '#4CAF50'
-                },
-                {
-                    label: 'Skipped',
-                    data: weeklyData.skipped,
-                    backgroundColor: '#FF9800'
-                },
-                {
-                    label: 'Pending',
-                    data: weeklyData.pending,
-                    backgroundColor: '#2196F3'
+                    startDate.setDate(startDate.getDate() + 1); // Move to next day
                 }
-            ]
-        },
-        options: {
-            scales: { y: { beginAtZero: true } }
-        }
-    });
 
-    // Monthly Chart
-    const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
-    new Chart(monthlyCtx, {
-        type: 'bar',
-        data: {
-            labels: monthlyData.days, // Days of the month
-            datasets: [
-                {
-                    label: 'Completed',
-                    data: monthlyData.completed,
-                    backgroundColor: '#4CAF50'
-                },
-                {
-                    label: 'Skipped',
-                    data: monthlyData.skipped,
-                    backgroundColor: '#FF9800'
-                },
-                {
-                    label: 'Pending',
-                    data: monthlyData.pending,
-                    backgroundColor: '#2196F3'
-                }
-            ]
-        },
-        options: {
-            scales: { y: { beginAtZero: true } }
-        }
-    });
-}
-
-function getWeeklyData() {
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay()); // Start from Sunday
-    const endOfWeek = new Date(today);
-    endOfWeek.setDate(today.getDate() + (6 - today.getDay())); // End on Saturday
-
-    const days = [];
-    const completed = [];
-    const skipped = [];
-    const pending = [];
-
-    for (let d = new Date(startOfWeek); d <= endOfWeek; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        days.push(dateStr);
-
-        let dayCompleted = 0;
-        let daySkipped = 0;
-        let dayPending = 0;
-
-        const day = plannerData.days.find(day => day.date === dateStr);
-        if (day) {
-            day.tasks.forEach(task => {
-                if (task.status === 'completed') dayCompleted++;
-                if (task.status === 'skipped') daySkipped++;
-                if (task.status === 'pending') dayPending++;
-            });
+                saveData();
+                input.value = '';
+                loadDay(currentDate);
+                renderCharts();
+            } else {
+                alert("Please enter a task and select an expiry date.");
+            }
         }
 
-        completed.push(dayCompleted);
-        skipped.push(daySkipped);
-        pending.push(dayPending);
-    }
-
-    return { days, completed, skipped, pending };
-}
-
-function getMonthlyData() {
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-    const days = [];
-    const completed = [];
-    const skipped = [];
-    const pending = [];
-
-    for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        days.push(dateStr);
-
-        let dayCompleted = 0;
-        let daySkipped = 0;
-        let dayPending = 0;
-
-        const day = plannerData.days.find(day => day.date === dateStr);
-        if (day) {
-            day.tasks.forEach(task => {
-                if (task.status === 'completed') dayCompleted++;
-                if (task.status === 'skipped') daySkipped++;
-                if (task.status === 'pending') dayPending++;
-            });
-        }
-
-        completed.push(dayCompleted);
-        skipped.push(daySkipped);
-        pending.push(dayPending);
-    }
-
-    return { days, completed, skipped, pending };
-}
-</script>
-    <!-- Firebase App (core SDK) -->
-<script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js"></script>
-
-<!-- Firebase Authentication -->
-<script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-auth.js"></script>
-
-<!-- Firebase Firestore (database) -->
-<script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js"></script>
+        // Rest of your task management functions...
+    </script>
 </body>
 </html>
