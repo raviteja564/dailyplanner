@@ -29,6 +29,23 @@
         .graph-container { margin-top: 40px; }
         .graph-container div { margin-bottom: 40px; }
     </style>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyCVG1dE9X5b3YAX_tG_XKc01pKx-SlC-v0",
+        authDomain: "dailyplanner-e9f7d.firebaseapp.com",
+        projectId: "dailyplanner-e9f7d",
+        storageBucket: "dailyplanner-e9f7d.firebasestorage.app",
+        messagingSenderId: "1037126520",
+        appId: "1:1037126520:web:ce7031339a68723991968d",
+        measurementId: "G-CJ2T8M13Z7"
+      };
+      firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+      const db = firebase.firestore();
+    </script>
 </head>
 <body>
     <h1>  Daily Planner with Enhanced Graphs</h1>
@@ -49,6 +66,7 @@
         <span id="currentRange"></span>
         <button class="nav-button" onclick="next()">Next</button>
         <button class="today-button" onclick="highlightToday()">Today</button>
+        <button class="nav-button" onclick="logout()">Logout</button>
     </div>
 
     <!-- Calendar -->
@@ -89,7 +107,20 @@
 
 <script>
 // Data structure: { days: [{ date: "YYYY-MM-DD", tasks: [{ id, name, status, notes }] }] }
-let plannerData = JSON.parse(localStorage.getItem('plannerData')) || { days: [] };
+let plannerData = { days: [] };
+
+// Add auth check
+auth.onAuthStateChanged(user => {
+  if (user) {
+    // Load user's data from Firestore
+    db.collection("users").doc(user.uid).get().then(doc => {
+      if (doc.exists) plannerData = doc.data().plannerData;
+      initApp();
+    });
+  } else {
+    window.location.href = "login.html"; // Redirect if not logged in
+  }
+});
 let currentDate = new Date().toLocaleDateString('en-CA'); // Use local time in YYYY-MM-DD format
 let currentStartDate = new Date(); // Start date for day view (local time)
 let deleteTaskId = null; // Track task to delete
@@ -288,7 +319,16 @@ function highlightToday() {
 }
 
 function saveData() {
-    localStorage.setItem('plannerData', JSON.stringify(plannerData));
+  const user = auth.currentUser;
+  if (user) {
+    db.collection("users").doc(user.uid).set({
+      plannerData: plannerData
+    }, { merge: true });
+  }
+}
+
+function logout() {
+  auth.signOut().then(() => window.location.href = "login.html");
 }
 
 function renderCharts() {
