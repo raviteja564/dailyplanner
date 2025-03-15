@@ -41,7 +41,7 @@
             <h2>Login</h2>
             <input type="email" id="loginEmail" placeholder="Email">
             <input type="password" id="loginPassword" placeholder="Password">
-            <button onclick="login()">Login</button>
+            <button id="loginButton" onclick="login()" disabled>Login</button>
             <p>Don't have an account? <a href="#" onclick="showSignUp()">Sign Up</a></p>
         </div>
 
@@ -50,7 +50,7 @@
             <h2>Sign Up</h2>
             <input type="email" id="email" placeholder="Email">
             <input type="password" id="password" placeholder="Password">
-            <button onclick="signUp()">Sign Up</button>
+            <button id="signupButton" onclick="signUp()" disabled>Sign Up</button>
             <p>Already have an account? <a href="#" onclick="showLogin()">Login</a></p>
         </div>
     </div>
